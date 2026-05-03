@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Fraud Detection System</title>
+  <meta name="description" content="Production-grade real-time fraud detection dashboard powered by FastAPI, ML, and WebSockets." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">FraudShield</span>
+      <span class="brand-tag">AI Powered</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-section="dashboard" id="nav-dashboard">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg>
+      Dashboard
+    </a>
+    <a href="#" class="nav-item" data-section="transactions" id="nav-transactions">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7h18M3 12h18M3 17h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Transactions
+    </a>
+    <a href="#" class="nav-item" data-section="alerts" id="nav-alerts">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Alerts
+      <span class="nav-badge" id="alert-badge">0</span>
+    </a>
+    <a href="#" class="nav-item" data-section="analytics" id="nav-analytics">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Analytics
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="connection-status" id="ws-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════
+     MAIN CONTENT
+════════════════════════════════════════ -->
+<main class="main-content">
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="page-title" id="page-title">Dashboard</h1>
+      <span class="page-subtitle">Real-time fraud monitoring · Auto-refreshing</span>
+    </div>
+    <div class="topbar-right">
+      <div class="sim-controls">
+        <button class="btn btn-ghost" id="btn-single" title="Generate single transaction">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Single
+        </button>
+        <button class="btn btn-ghost btn-danger-ghost" id="btn-fraud" title="Force a fraudulent transaction">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Force Fraud
+        </button>
+        <button class="btn btn-primary" id="btn-sim-toggle">
+          <span id="sim-label">▶ Start Simulation</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ SECTION: DASHBOARD ══ -->
+  <section class="section active" id="section-dashboard">
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card" id="kpi-total">
+        <div class="kpi-icon icon-blue">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Total Transactions</span>
+          <span class="kpi-value" id="stat-total">0</span>
+          <span class="kpi-delta" id="stat-total-delta">Live</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpi-fraud">
+        <div class="kpi-icon icon-red">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Fraud Detected</span>
+          <span class="kpi-value" id="stat-fraud">0</span>
+          <span class="kpi-delta danger" id="stat-fraud-rate">0% rate</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpi-amount">
+        <div class="kpi-icon icon-green">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Amount Processed</span>
+          <span class="kpi-value" id="stat-amount">₹0</span>
+          <span class="kpi-delta">Total INR</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpi-risk">
+        <div class="kpi-icon icon-yellow">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Avg Risk Score</span>
+          <span class="kpi-value" id="stat-avg-risk">0</span>
+          <span class="kpi-delta" id="stat-risk-level">Low Risk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Transaction Volume</h3>
+          <span class="chart-badge">Last 24h</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-volume"></canvas>
+        </div>
+      </div>
+      <div class="chart-card chart-card-sm">
+        <div class="chart-header">
+          <h3>Fraud Ratio</h3>
+          <span class="chart-badge">Live</span>
+        </div>
+        <div class="chart-container chart-doughnut-wrap">
+          <canvas id="chart-fraud-ratio"></canvas>
+          <div class="doughnut-center">
+            <span id="doughnut-label">0%</span>
+            <small>Fraud</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Distribution -->
+    <div class="risk-distribution-card">
+      <h3>Risk Distribution</h3>
+      <div class="risk-bars">
+        <div class="risk-bar-item">
+          <div class="risk-bar-label">
+            <span class="dot dot-green"></span> Low Risk
+            <span class="risk-count" id="risk-low-count">0</span>
+          </div>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill fill-green" id="risk-low-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="risk-bar-item">
+          <div class="risk-bar-label">
+            <span class="dot dot-yellow"></span> Medium Risk
+            <span class="risk-count" id="risk-med-count">0</span>
+          </div>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill fill-yellow" id="risk-med-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="risk-bar-item">
+          <div class="risk-bar-label">
+            <span class="dot dot-red"></span> High Risk
+            <span class="risk-count" id="risk-high-count">0</span>
+          </div>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill fill-red" id="risk-high-bar" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Feed (last 5) -->
+    <div class="live-feed-card">
+      <div class="card-header-row">
+        <h3>Live Feed</h3>
+        <span class="live-dot-label"><span class="live-dot"></span> Real-time</span>
+      </div>
+      <div class="live-feed" id="live-feed">
+        <div class="feed-empty">Waiting for transactions…</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══ SECTION: TRANSACTIONS ══ -->
+  <section class="section" id="section-transactions">
+    <div class="section-header-row">
+      <h2>All Transactions</h2>
+      <div class="filter-row">
+        <select id="filter-risk" class="select-input">
+          <option value="">All Risk Levels</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+        <select id="filter-fraud" class="select-input">
+          <option value="">All</option>
+          <option value="true">Fraud Only</option>
+          <option value="false">Safe Only</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="btn-refresh-txns">Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll">
+        <table class="data-table" id="txn-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Amount</th>
+              <th>Merchant</th>
+              <th>Payment</th>
+              <th>User</th>
+              <th>Risk Score</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="txn-tbody">
+            <tr><td colspan="8" class="table-empty">No transactions yet. Start the simulation.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION: ALERTS ══ -->
+  <section class="section" id="section-alerts">
+    <div class="section-header-row">
+      <h2>Fraud Alerts</h2>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-alerts">Mark All Read</button>
+    </div>
+    <div class="alerts-list" id="alerts-list">
+      <div class="alert-empty">No alerts yet. System is monitoring…</div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION: ANALYTICS ══ -->
+  <section class="section" id="section-analytics">
+    <h2>Analytics</h2>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Risk Score Distribution</h3>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-risk-scores"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Payment Method Breakdown</h3>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-payment-methods"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="model-card">
+      <h3>ML Model Performance</h3>
+      <div class="model-metrics-grid">
+        <div class="model-metric">
+          <span class="model-metric-label">Model</span>
+          <span class="model-metric-value">Random Forest v1.0</span>
+        </div>
+        <div class="model-metric">
+          <span class="model-metric-label">Fraud Threshold</span>
+          <span class="model-metric-value">70 / 100</span>
+        </div>
+        <div class="model-metric">
+          <span class="model-metric-label">Features</span>
+          <span class="model-metric-value">12 Features</span>
+        </div>
+        <div class="model-metric">
+          <span class="model-metric-label">Training Data</span>
+          <span class="model-metric-value">15,000 samples</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════════════════
+     FRAUD ALERT TOAST
+════════════════════════════════════════ -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════
+     TRANSACTION DETAIL MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="txn-modal">
+    <div class="modal-header">
+      <h3>Transaction Detail</h3>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
